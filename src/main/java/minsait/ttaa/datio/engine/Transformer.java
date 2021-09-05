@@ -14,6 +14,7 @@ import static minsait.ttaa.datio.common.naming.PlayerOutput.*;
 import static org.apache.spark.sql.functions.*;
 
 public class Transformer extends Writer {
+
     private SparkSession spark;
 
     public Transformer(@NotNull SparkSession spark) {
@@ -23,7 +24,10 @@ public class Transformer extends Writer {
         df.printSchema();
 
         df = cleanData(df);
-        df = exampleWindowFunction(df);
+        df = ageRangeWindow(df);
+        df = rankByNationalityAndTeamPosition(df);
+        df = potencialVsOverall(df);
+        df = customizedFilter(df);
         df = columnSelection(df);
 
         // for show 100 records after your transformations and show the Dataset schema
@@ -31,16 +35,25 @@ public class Transformer extends Writer {
         df.printSchema();
 
         // Uncomment when you want write your final output
-        //write(df);
+        write(df);
     }
 
     private Dataset<Row> columnSelection(Dataset<Row> df) {
         return df.select(
                 shortName.column(),
-                overall.column(),
+                longName.column(),
+                age.column(),
                 heightCm.column(),
+                weightKg.column(),
+                nationality.column(),
+                clubName.column(),
+                overall.column(),
+                potential.column(),
                 teamPosition.column(),
-                catHeightByPosition.column()
+                catByAge.column(),
+                rank_by_nationality_position.column(),
+                potencialVsOverall.column()
+//                catHeightByPosition.column()
         );
     }
 
@@ -62,12 +75,13 @@ public class Transformer extends Writer {
      */
     private Dataset<Row> cleanData(Dataset<Row> df) {
         df = df.filter(
-                teamPosition.column().isNotNull().and(
-                        shortName.column().isNotNull()
-                ).and(
-                        overall.column().isNotNull()
+                teamPosition.column().isNotNull()
+                    .and(shortName.column().isNotNull())
+                    .and(overall.column().isNotNull()
                 )
         );
+
+//        df.withColumn(longName.getName(),when(longName.column().contains("?"), "DESCONOCIDO                        "));
 
         return df;
     }
@@ -91,12 +105,53 @@ public class Transformer extends Writer {
                 .when(rank.$less(50), "B")
                 .otherwise("C");
 
-        df = df.withColumn(catHeightByPosition.getName(), rule);
+//        df = df.withColumn(catHeightByPosition.getName(), rule);
 
         return df;
     }
 
 
+    private Dataset<Row> ageRangeWindow(Dataset<Row> df) {
+
+        df = (df.withColumn(catByAge.getName(), when(age.column().$less(23),"A" )
+                .when(age.column().$less(27),"B")
+                .when(age.column().$less(32),"C")
+                .otherwise("D")));
+
+        return df;
+    }
+
+
+    private Dataset<Row> rankByNationalityAndTeamPosition(Dataset<Row> df) {
+        WindowSpec w = Window
+                .partitionBy(teamPosition.column(),nationality.column())
+                .orderBy(overall.column().desc());
+
+        df = df.withColumn(rank_by_nationality_position.getName(), row_number().over(w));
+
+        return df;
+    }
+
+
+    private Dataset<Row> potencialVsOverall(Dataset<Row> df) {
+
+        df = (df.withColumn(potencialVsOverall.getName(), col(potential.getName()).divide(col(overall.getName()))));
+
+        return df;
+    }
+
+
+    private Dataset<Row> customizedFilter(Dataset<Row> df) {
+
+        df = df.filter(
+                rank_by_nationality_position.column().$less(3)
+                .or( (catByAge.column().equalTo("A").and(potencialVsOverall.column().$greater(1.25))) )
+                .or( ((catByAge.column().equalTo("B").or(catByAge.column().equalTo("C"))).and(potencialVsOverall.column().$greater(1.15))) )
+                .or( catByAge.column().equalTo("D").and(rank_by_nationality_position.column().$less(5)) )
+        );
+
+        return df;
+    }
 
 
 }
