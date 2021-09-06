@@ -17,6 +17,8 @@ public class Transformer extends Writer {
 
     private SparkSession spark;
 
+    public Transformer(){}
+
     public Transformer(@NotNull SparkSession spark) {
         this.spark = spark;
         Dataset<Row> df = readInput();
@@ -35,9 +37,12 @@ public class Transformer extends Writer {
         df.printSchema();
 
         // Uncomment when you want write your final output
-        write(df);
+//        write(df);
     }
 
+    /**
+     *  Ejercicio 1
+     */
     private Dataset<Row> columnSelection(Dataset<Row> df) {
         return df.select(
                 shortName.column(),
@@ -111,6 +116,9 @@ public class Transformer extends Writer {
     }
 
 
+    /**
+     *  Ejercicio 2
+     */
     private Dataset<Row> ageRangeWindow(Dataset<Row> df) {
 
         df = (df.withColumn(catByAge.getName(), when(age.column().$less(23),"A" )
@@ -122,6 +130,9 @@ public class Transformer extends Writer {
     }
 
 
+    /**
+     *  Ejercicio 3
+     */
     private Dataset<Row> rankByNationalityAndTeamPosition(Dataset<Row> df) {
         WindowSpec w = Window
                 .partitionBy(teamPosition.column(),nationality.column())
@@ -132,7 +143,9 @@ public class Transformer extends Writer {
         return df;
     }
 
-
+    /**
+     *  Ejercicio 4
+     */
     private Dataset<Row> potencialVsOverall(Dataset<Row> df) {
 
         df = (df.withColumn(potencialVsOverall.getName(), col(potential.getName()).divide(col(overall.getName()))));
@@ -140,7 +153,9 @@ public class Transformer extends Writer {
         return df;
     }
 
-
+    /**
+     *  Ejercicio 5
+     */
     private Dataset<Row> customizedFilter(Dataset<Row> df) {
 
         df = df.filter(
